@@ -169,7 +169,7 @@ function App() {
 
   return (
     <div className="App">
-      <h1>Audio Transcription</h1>
+      <h1>Audio Visualizer</h1>
       <div className="upload-container">
         <label className="file-upload">
           Choose Audio File
