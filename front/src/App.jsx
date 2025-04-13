@@ -114,14 +114,25 @@ function App() {
 
     const handleTimeUpdate = () => {
       const currentTime = audioElement.currentTime;
+      // Add a small time offset (300ms) to compensate for perception lag
+      const adjustedTime = currentTime + 0.3;
       
-      // Find the current segment based on time
+      // Find the current segment based on adjusted time
       const currentSegment = segments.find(
-        segment => currentTime >= segment.start && currentTime <= segment.end
+        segment => adjustedTime >= segment.start && adjustedTime <= segment.end
       );
       
       if (currentSegment) {
         setCurrentSegmentId(currentSegment.id);
+      } else {
+        // If not in any segment, find the closest upcoming segment
+        const upcomingSegment = segments
+          .filter(segment => segment.start > currentTime)
+          .sort((a, b) => a.start - b.start)[0];
+          
+        if (upcomingSegment) {
+          setCurrentSegmentId(upcomingSegment.id);
+        }
       }
     };
 
