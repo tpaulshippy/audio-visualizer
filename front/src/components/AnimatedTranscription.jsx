@@ -1,4 +1,5 @@
 import React from 'react';
+import PropTypes from 'prop-types';
 
 /**
  * AnimatedTranscription Component
@@ -13,6 +14,22 @@ const AnimatedTranscription = ({ segment, isVisible }) => {
       {segment?.text || ''}
     </div>
   );
+};
+
+AnimatedTranscription.propTypes = {
+  segment: PropTypes.shape({
+    id: PropTypes.number,
+    text: PropTypes.string,
+    start: PropTypes.number,
+    end: PropTypes.number,
+    chunk_id: PropTypes.number
+  }),
+  isVisible: PropTypes.bool
+};
+
+AnimatedTranscription.defaultProps = {
+  segment: null,
+  isVisible: false
 };
 
 export default AnimatedTranscription;

@@ -1,4 +1,5 @@
 import React from 'react';
+import PropTypes from 'prop-types';
 
 /**
  * AIVisualDescription Component
@@ -19,6 +20,16 @@ const AIVisualDescription = ({ description, isLoading }) => {
       </div>
     </div>
   );
+};
+
+AIVisualDescription.propTypes = {
+  description: PropTypes.string,
+  isLoading: PropTypes.bool
+};
+
+AIVisualDescription.defaultProps = {
+  description: '',
+  isLoading: false
 };
 
 export default AIVisualDescription;

@@ -4,7 +4,8 @@ import AnimatedTranscription from './components/AnimatedTranscription';
 import AIVisualDescription from './components/AIVisualDescription';
 
 function App() {
-  const [transcription, setTranscription] = useState('');
+  // Remove the unused 'transcription' variable and keep the setter
+  const [, setTranscription] = useState('');
   const [segments, setSegments] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [audioSrc, setAudioSrc] = useState(null);
@@ -44,7 +45,7 @@ function App() {
       return data.response;
     } catch (error) {
       console.error(`Error generating visual description for chunk ${chunkId}:`, error);
-      return "Could not generate visual description at this time.";
+      return 'Could not generate visual description at this time.';
     }
   };
   
@@ -146,7 +147,7 @@ function App() {
           const fullText = partialData + chunk;
           
           // Split by double newlines (SSE format uses "data: {...}\n\n")
-          const parts = fullText.split("\n\n");
+          const parts = fullText.split('\n\n');
           
           // The last part might be incomplete, save it for the next chunk
           partialData = parts.pop() || '';
@@ -159,7 +160,7 @@ function App() {
                 const data = JSON.parse(jsonStr);
                 
                 if (data.error) {
-                  console.error("Error in transcription:", data.error);
+                  console.error('Error in transcription:', data.error);
                   setTranscription(`Error: ${data.error}`);
                   setIsLoading(false);
                   return;
@@ -185,13 +186,13 @@ function App() {
                 // Queue this chunk for visual description processing
                 queueChunkForProcessing(data.chunk_text, data.chunk_id);
               } catch (e) {
-                console.error("Error parsing JSON:", e, jsonStr);
+                console.error('Error parsing JSON:', e, jsonStr);
               }
             }
           }
         }
       } catch (error) {
-        console.error("Error:", error);
+        console.error('Error:', error);
         setTranscription(`Error: ${error.message}`);
         setIsLoading(false);
       }
@@ -272,24 +273,29 @@ function App() {
     }
   }, [currentSegmentId]);
 
-  // Clean up EventSource on unmount
+  // Clean up EventSource on unmount - fixing the React hooks dependency warning
   useEffect(() => {
+    // Store the current value of the ref in a variable that won't change
+    const eventSource = eventSourceRef.current;
+    
     return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
+      if (eventSource) {
+        eventSource.close();
       }
     };
   }, []);
 
-  // Format time from seconds to MM:SS format
-  const formatTime = (timeInSeconds) => {
+  // Format time from seconds to MM:SS format - kept for future use
+  // Marked with _ prefix to indicate it's intentionally unused
+  const _formatTime = (timeInSeconds) => {
     const minutes = Math.floor(timeInSeconds / 60);
     const seconds = Math.floor(timeInSeconds % 60);
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  // Jump to specific segment time in the audio
-  const jumpToSegment = (startTime) => {
+  // Jump to specific segment time in the audio - kept for future use
+  // Marked with _ prefix to indicate it's intentionally unused
+  const _jumpToSegment = (startTime) => {
     if (audioRef.current) {
       audioRef.current.currentTime = startTime;
       if (audioRef.current.paused) {
@@ -334,7 +340,7 @@ function App() {
           />
         ) : (
           <div className="animated-segment empty-message">
-            {isLoading ? "Processing audio..." : "Upload an audio file to see transcription"}
+            {isLoading ? 'Processing audio...' : 'Upload an audio file to see transcription'}
           </div>
         )}
       </div>
