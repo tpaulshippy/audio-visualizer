@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import './App.css';
 import AnimatedTranscription from './components/AnimatedTranscription';
+import AIVisualDescription from './components/AIVisualDescription';
 
 function App() {
   const [transcription, setTranscription] = useState('');
@@ -10,8 +11,85 @@ function App() {
   const [currentSegmentId, setCurrentSegmentId] = useState(null);
   const [progress, setProgress] = useState(0);
   const [isAwaitingTranscription, setIsAwaitingTranscription] = useState(false);
+  const [visualDescriptions, setVisualDescriptions] = useState({}); // Map of chunk_id to descriptions
+  const [currentVisualDescription, setCurrentVisualDescription] = useState('');
+  const [isGeneratingVisual, setIsGeneratingVisual] = useState(false);
   const audioRef = useRef(null);
   const eventSourceRef = useRef(null);
+  const chunksForProcessingRef = useRef([]); // Store chunks for processing
+  const processingVisualRef = useRef(false); // Flag to track if we're currently processing
+  
+  // Function to send text to Ollama and get image description
+  const generateVisualDescription = async (text, chunkId) => {
+    if (!text || text.trim().length < 20) return null; // Skip if text is too short
+    
+    try {
+      const response = await fetch('http://localhost:11434/api/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'llama3', // Use your preferred Ollama model
+          prompt: `Create a brief visual description (1-2 sentences only) for an image that captures the essence of this text. Only output the description with no introductory text. Focus on the most important visual elements only: "${text}"`,
+          stream: false
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Ollama API error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return data.response;
+    } catch (error) {
+      console.error(`Error generating visual description for chunk ${chunkId}:`, error);
+      return "Could not generate visual description at this time.";
+    }
+  };
+  
+  // Process the queue of chunks for visual descriptions
+  const processVisualDescriptionQueue = async () => {
+    if (processingVisualRef.current || chunksForProcessingRef.current.length === 0) {
+      return;
+    }
+    
+    processingVisualRef.current = true;
+    setIsGeneratingVisual(true);
+    
+    try {
+      const chunk = chunksForProcessingRef.current.shift();
+      const description = await generateVisualDescription(chunk.text, chunk.id);
+      
+      if (description) {
+        setVisualDescriptions(prev => ({
+          ...prev,
+          [chunk.id]: description
+        }));
+      }
+    } finally {
+      processingVisualRef.current = false;
+      setIsGeneratingVisual(false);
+      
+      // Continue processing the queue if there are more items
+      if (chunksForProcessingRef.current.length > 0) {
+        setTimeout(processVisualDescriptionQueue, 100); // Small delay to prevent API flooding
+      }
+    }
+  };
+  
+  // Add chunk to the queue for visual description processing
+  const queueChunkForProcessing = (chunkText, chunkId) => {
+    chunksForProcessingRef.current.push({
+      id: chunkId,
+      text: chunkText
+    });
+    
+    // Start processing if not already running
+    if (!processingVisualRef.current) {
+      processVisualDescriptionQueue();
+    }
+  };
 
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
@@ -21,6 +99,9 @@ function App() {
       setSegments([]);
       setCurrentSegmentId(null);
       setProgress(0);
+      setVisualDescriptions({});
+      setCurrentVisualDescription('');
+      chunksForProcessingRef.current = [];
       
       // Create audio URL for playback
       const audioUrl = URL.createObjectURL(file);
@@ -87,13 +168,22 @@ function App() {
                 // Update progress
                 setProgress(Math.round((data.chunk_id + 1) / data.total_chunks * 100));
                 
+                // Add chunk_id to each segment for easier lookup later
+                const segmentsWithChunkId = data.segments.map(segment => ({
+                  ...segment,
+                  chunk_id: data.chunk_id
+                }));
+                
                 // Append new segments to existing segments
-                const newSegments = [...allSegments, ...data.segments];
+                const newSegments = [...allSegments, ...segmentsWithChunkId];
                 allSegments = newSegments;
                 setSegments(newSegments);
                 
                 // Append new chunk text to existing transcription
                 setTranscription(prev => prev + ' ' + data.chunk_text);
+                
+                // Queue this chunk for visual description processing
+                queueChunkForProcessing(data.chunk_text, data.chunk_id);
               } catch (e) {
                 console.error("Error parsing JSON:", e, jsonStr);
               }
@@ -108,7 +198,7 @@ function App() {
     }
   };
 
-  // Update current segment based on audio time
+  // Update current segment and visual description based on audio time
   useEffect(() => {
     const audioElement = audioRef.current;
     if (!audioElement || segments.length === 0) return;
@@ -125,6 +215,15 @@ function App() {
       
       if (currentSegment) {
         setCurrentSegmentId(currentSegment.id);
+        
+        // Find which chunk this segment belongs to
+        const chunkId = currentSegment.chunk_id;
+        
+        // Set the visual description for this chunk if available
+        if (visualDescriptions[chunkId]) {
+          setCurrentVisualDescription(visualDescriptions[chunkId]);
+        }
+        
         setIsAwaitingTranscription(false);
       } else {
         // Check if we're at a position beyond the last transcribed segment
@@ -142,6 +241,14 @@ function App() {
           
         if (upcomingSegment) {
           setCurrentSegmentId(upcomingSegment.id);
+          
+          // Find which chunk this upcoming segment belongs to
+          const chunkId = upcomingSegment.chunk_id;
+          
+          // Set the visual description for this chunk if available
+          if (visualDescriptions[chunkId]) {
+            setCurrentVisualDescription(visualDescriptions[chunkId]);
+          }
         }
       }
     };
@@ -153,7 +260,7 @@ function App() {
       audioElement.removeEventListener('timeupdate', handleTimeUpdate);
       audioElement.removeEventListener('seeking', handleTimeUpdate);
     };
-  }, [segments, isLoading]);
+  }, [segments, isLoading, visualDescriptions]);
 
   // Scroll to current segment (for the detailed view)
   useEffect(() => {
@@ -209,6 +316,11 @@ function App() {
           <input type="file" accept="audio/*" onChange={handleFileUpload} />
         </label>
       </div>
+
+      <AIVisualDescription 
+        description={currentVisualDescription} 
+        isLoading={isGeneratingVisual && Object.keys(visualDescriptions).length === 0} 
+      />
 
       <div className="animated-transcription-container">
         {isAwaitingTranscription ? (
