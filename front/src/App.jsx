@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import './App.css';
+import AnimatedTranscription from './components/AnimatedTranscription';
 
 function App() {
   const [transcription, setTranscription] = useState('');
@@ -131,7 +132,7 @@ function App() {
     };
   }, [segments]);
 
-  // Scroll to current segment
+  // Scroll to current segment (for the detailed view)
   useEffect(() => {
     if (currentSegmentId !== null) {
       const element = document.getElementById(`segment-${currentSegmentId}`);
@@ -167,6 +168,15 @@ function App() {
     }
   };
 
+  // Get current segment object
+  const getCurrentSegment = () => {
+    if (currentSegmentId === null || segments.length === 0) return null;
+    return segments.find(segment => segment.id === currentSegmentId);
+  };
+
+  // Get current segment text
+  const currentSegment = getCurrentSegment();
+
   return (
     <div className="App">
       <h1>Audio Visualizer</h1>
@@ -175,6 +185,19 @@ function App() {
           Choose Audio File
           <input type="file" accept="audio/*" onChange={handleFileUpload} />
         </label>
+      </div>
+
+      <div className="animated-transcription-container">
+        {segments.length > 0 ? (
+          <AnimatedTranscription 
+            segment={currentSegment}
+            isVisible={!!currentSegment}
+          />
+        ) : (
+          <div className="animated-segment empty-message">
+            {isLoading ? "Processing audio..." : "Upload an audio file to see transcription"}
+          </div>
+        )}
       </div>
 
       {audioSrc && (
@@ -194,32 +217,6 @@ function App() {
           <div className="progress-bar">
             <div className="progress-fill" style={{ width: `${progress}%` }}></div>
           </div>
-        </div>
-      )}
-
-      {segments.length > 0 && (
-        <div className="transcription-container">
-          <h3>Transcription:</h3>
-          <div className="captions-view">
-            {segments.map((segment) => (
-              <div 
-                key={segment.id} 
-                id={`segment-${segment.id}`}
-                className={`caption-segment ${currentSegmentId === segment.id ? 'active-segment' : ''}`}
-                onClick={() => jumpToSegment(segment.start)}
-              >
-                <span className="timestamp">[{formatTime(segment.start)} - {formatTime(segment.end)}]</span>
-                <span className="segment-text">{segment.text}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {transcription && !isLoading && segments.length === 0 && (
-        <div className="transcription-container">
-          <h3>Transcription:</h3>
-          <div className="transcription-text">{transcription}</div>
         </div>
       )}
     </div>

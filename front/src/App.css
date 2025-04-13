@@ -37,8 +37,85 @@ h1 {
   display: none;
 }
 
-.audio-player {
+/* Animated transcription styles */
+.animated-transcription-container {
+  height: 120px; /* Fixed height */
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin: 2rem 0;
+  background-color: rgba(20, 20, 20, 0.7);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  position: relative;
+  width: 100%; /* Take full width of parent */
+  max-width: 100%;
+}
+
+.animated-transcription-container::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #4a90e2, #63f5aa);
+  border-radius: 0 0 12px 12px;
+}
+
+.animated-segment {
+  font-size: 1.6rem;
+  line-height: 1.6;
+  color: #ffffff;
+  font-weight: 400;
+  text-align: center;
+  letter-spacing: 0.02em;
+  transition: all 0.5s ease;
+  width: 90%; /* Slightly narrower to ensure no cutoff */
+  padding: 10px;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%); /* This centers it horizontally */
+  margin: 0 auto;
+}
+
+.fade-in {
+  animation: fadeIn 0.7s ease-in forwards;
+  opacity: 1;
+}
+
+.fade-out {
+  animation: fadeOut 0.5s ease-out forwards;
+  opacity: 0;
+}
+
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 15px); /* Maintain horizontal centering */
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, 0); /* Maintain horizontal centering */
+  }
+}
+
+@keyframes fadeOut {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, 0); /* Maintain horizontal centering */
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -15px); /* Maintain horizontal centering */
+  }
+}
+
+.audio-player {
+  margin: 1rem 0;
 }
 
 .audio-player audio {
