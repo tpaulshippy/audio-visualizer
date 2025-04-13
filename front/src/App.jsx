@@ -9,6 +9,7 @@ function App() {
   const [audioSrc, setAudioSrc] = useState(null);
   const [currentSegmentId, setCurrentSegmentId] = useState(null);
   const [progress, setProgress] = useState(0);
+  const [isAwaitingTranscription, setIsAwaitingTranscription] = useState(false);
   const audioRef = useRef(null);
   const eventSourceRef = useRef(null);
 
@@ -124,7 +125,16 @@ function App() {
       
       if (currentSegment) {
         setCurrentSegmentId(currentSegment.id);
+        setIsAwaitingTranscription(false);
       } else {
+        // Check if we're at a position beyond the last transcribed segment
+        const lastSegment = segments[segments.length - 1];
+        const isAwaitingMoreTranscripts = lastSegment && 
+          currentTime > lastSegment.end && 
+          isLoading;
+
+        setIsAwaitingTranscription(isAwaitingMoreTranscripts);
+        
         // If not in any segment, find the closest upcoming segment
         const upcomingSegment = segments
           .filter(segment => segment.start > currentTime)
@@ -137,11 +147,13 @@ function App() {
     };
 
     audioElement.addEventListener('timeupdate', handleTimeUpdate);
+    audioElement.addEventListener('seeking', handleTimeUpdate);
     
     return () => {
       audioElement.removeEventListener('timeupdate', handleTimeUpdate);
+      audioElement.removeEventListener('seeking', handleTimeUpdate);
     };
-  }, [segments]);
+  }, [segments, isLoading]);
 
   // Scroll to current segment (for the detailed view)
   useEffect(() => {
@@ -199,7 +211,11 @@ function App() {
       </div>
 
       <div className="animated-transcription-container">
-        {segments.length > 0 ? (
+        {isAwaitingTranscription ? (
+          <div className="animated-segment fade-in">
+            Still transcribing...
+          </div>
+        ) : segments.length > 0 ? (
           <AnimatedTranscription 
             segment={currentSegment}
             isVisible={!!currentSegment}
