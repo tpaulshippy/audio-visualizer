@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import './App.css';
 import AnimatedTranscription from './components/AnimatedTranscription';
 import AIVisualDescription from './components/AIVisualDescription';
+import UnsplashVisualizer from './components/UnsplashVisualizer';
 
 function App() {
   // State for shared functionality
@@ -12,7 +13,8 @@ function App() {
   const [currentSegmentId, setCurrentSegmentId] = useState(null);
   const [progress, setProgress] = useState(0);
   const [isAwaitingTranscription, setIsAwaitingTranscription] = useState(false);
-  const [visualizationMode, setVisualizationMode] = useState('transcription'); // 'transcription' or 'visual'
+  const [visualizationMode, setVisualizationMode] = useState('transcription'); // 'transcription', 'visual', or 'image'
+  const [isPlaying, setIsPlaying] = useState(false); // Add state to track if audio is playing
   
   // Refs
   const audioRef = useRef(null);
@@ -22,6 +24,7 @@ function App() {
   const [currentChunkId, setCurrentChunkId] = useState(null);
   const [currentChunkText, setCurrentChunkText] = useState('');
   const [_visualDescriptions, setVisualDescriptions] = useState({}); // Prefixed with underscore since it's tracked but not directly used
+  const [_unsplashImages, setUnsplashImages] = useState({}); // Prefixed with underscore since it's tracked but not directly used
 
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
@@ -34,6 +37,7 @@ function App() {
       setCurrentChunkText('');
       setProgress(0);
       setVisualDescriptions({});
+      setUnsplashImages({});
       
       // Create audio URL for playback
       const audioUrl = URL.createObjectURL(file);
@@ -136,6 +140,11 @@ function App() {
     const audioElement = audioRef.current;
     if (!audioElement || segments.length === 0) return;
 
+    // Add event listeners for play and pause
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+    const handleEnded = () => setIsPlaying(false);
+
     const handleTimeUpdate = () => {
       const currentTime = audioElement.currentTime;
       // Add a small time offset (300ms) to compensate for perception lag
@@ -176,10 +185,16 @@ function App() {
 
     audioElement.addEventListener('timeupdate', handleTimeUpdate);
     audioElement.addEventListener('seeking', handleTimeUpdate);
+    audioElement.addEventListener('play', handlePlay);
+    audioElement.addEventListener('pause', handlePause);
+    audioElement.addEventListener('ended', handleEnded);
     
     return () => {
       audioElement.removeEventListener('timeupdate', handleTimeUpdate);
       audioElement.removeEventListener('seeking', handleTimeUpdate);
+      audioElement.removeEventListener('play', handlePlay);
+      audioElement.removeEventListener('pause', handlePause);
+      audioElement.removeEventListener('ended', handleEnded);
     };
   }, [segments, isLoading]);
 
@@ -209,6 +224,14 @@ function App() {
     setVisualDescriptions(prev => ({
       ...prev,
       [chunkId]: description
+    }));
+  };
+
+  // Callback for when an Unsplash image is fetched
+  const handleImageFetched = (chunkId, imageData) => {
+    setUnsplashImages(prev => ({
+      ...prev,
+      [chunkId]: imageData
     }));
   };
 
@@ -261,6 +284,12 @@ function App() {
             >
               Visual Description
             </button>
+            <button 
+              className={`toggle-btn ${visualizationMode === 'image' ? 'active' : ''}`}
+              onClick={() => setVisualizationMode('image')}
+            >
+              Image
+            </button>
           </div>
 
           {visualizationMode === 'visual' ? (
@@ -268,6 +297,14 @@ function App() {
               currentChunkId={currentChunkId}
               chunkText={currentChunkText || getCurrentChunkText()}
               onDescriptionGenerated={handleDescriptionGenerated}
+              isPlaying={isPlaying}
+            />
+          ) : visualizationMode === 'image' ? (
+            <UnsplashVisualizer
+              currentChunkId={currentChunkId}
+              chunkText={currentChunkText || getCurrentChunkText()}
+              onImageFetched={handleImageFetched}
+              isPlaying={isPlaying}
             />
           ) : (
             <AnimatedTranscription 
