@@ -15,6 +15,7 @@ function App() {
   const [visualDescriptions, setVisualDescriptions] = useState({}); // Map of chunk_id to descriptions
   const [currentVisualDescription, setCurrentVisualDescription] = useState('');
   const [isGeneratingVisual, setIsGeneratingVisual] = useState(false);
+  const [visualizationMode, setVisualizationMode] = useState('transcription'); // 'transcription' or 'visual'
   const audioRef = useRef(null);
   const eventSourceRef = useRef(null);
   const chunksForProcessingRef = useRef([]); // Store chunks for processing
@@ -315,35 +316,60 @@ function App() {
 
   return (
     <div className="App">
-      <h1>Audio Visualizer</h1>
-      <div className="upload-container">
-        <label className="file-upload">
-          Choose Audio File
-          <input type="file" accept="audio/*" onChange={handleFileUpload} />
-        </label>
-      </div>
-
-      <AIVisualDescription 
-        description={currentVisualDescription} 
-        isLoading={isGeneratingVisual && Object.keys(visualDescriptions).length === 0} 
-      />
-
-      <div className="animated-transcription-container">
-        {isAwaitingTranscription ? (
-          <div className="animated-segment fade-in">
-            Still transcribing...
+      {!audioSrc && (
+        <>
+          <h1>Audio Visualizer</h1>
+          <div className="upload-container">
+            <label className="file-upload">
+              Choose Audio File
+              <input type="file" accept="audio/*" onChange={handleFileUpload} />
+            </label>
           </div>
-        ) : segments.length > 0 ? (
-          <AnimatedTranscription 
-            segment={currentSegment}
-            isVisible={!!currentSegment}
-          />
-        ) : (
-          <div className="animated-segment empty-message">
-            {isLoading ? 'Processing audio...' : 'Upload an audio file to see transcription'}
+        </>
+      )}
+
+      {audioSrc && (
+        <div className="visualization-container">
+          <div className="visualization-toggle">
+            <button 
+              className={`toggle-btn ${visualizationMode === 'transcription' ? 'active' : ''}`}
+              onClick={() => setVisualizationMode('transcription')}
+            >
+              Transcription
+            </button>
+            <button 
+              className={`toggle-btn ${visualizationMode === 'visual' ? 'active' : ''}`}
+              onClick={() => setVisualizationMode('visual')}
+            >
+              Visual Description
+            </button>
           </div>
-        )}
-      </div>
+
+          {visualizationMode === 'visual' ? (
+            <AIVisualDescription 
+              description={currentVisualDescription} 
+              isLoading={isGeneratingVisual && Object.keys(visualDescriptions).length === 0} 
+            />
+          ) : (
+            <div className="animated-transcription-container">
+              {isAwaitingTranscription ? (
+                <div className="animated-segment fade-in">
+                  Still transcribing...
+                </div>
+              ) : segments.length > 0 ? (
+                <AnimatedTranscription 
+                  segment={currentSegment}
+                  isVisible={!!currentSegment}
+                />
+              ) : (
+                <div className="animated-segment empty-message">
+                  {isLoading ? 'Processing audio...' : 'Upload an audio file to see transcription'}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {audioSrc && (
         <div className="audio-player">
