@@ -4,94 +4,24 @@ import AnimatedTranscription from './components/AnimatedTranscription';
 import AIVisualDescription from './components/AIVisualDescription';
 
 function App() {
-  // Remove the unused 'transcription' variable and keep the setter
-  const [, setTranscription] = useState('');
+  // State for shared functionality
+  const [_transcription, setTranscription] = useState(''); // Prefixed with underscore since it's tracked but not directly used
   const [segments, setSegments] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [audioSrc, setAudioSrc] = useState(null);
   const [currentSegmentId, setCurrentSegmentId] = useState(null);
   const [progress, setProgress] = useState(0);
   const [isAwaitingTranscription, setIsAwaitingTranscription] = useState(false);
-  const [visualDescriptions, setVisualDescriptions] = useState({}); // Map of chunk_id to descriptions
-  const [currentVisualDescription, setCurrentVisualDescription] = useState('');
-  const [isGeneratingVisual, setIsGeneratingVisual] = useState(false);
   const [visualizationMode, setVisualizationMode] = useState('transcription'); // 'transcription' or 'visual'
+  
+  // Refs
   const audioRef = useRef(null);
   const eventSourceRef = useRef(null);
-  const chunksForProcessingRef = useRef([]); // Store chunks for processing
-  const processingVisualRef = useRef(false); // Flag to track if we're currently processing
   
-  // Function to send text to Ollama and get image description
-  const generateVisualDescription = async (text, chunkId) => {
-    if (!text || text.trim().length < 20) return null; // Skip if text is too short
-    
-    try {
-      const response = await fetch('http://localhost:11434/api/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'llama3', // Use your preferred Ollama model
-          prompt: `Create a brief visual description (1-2 sentences only) for an image that captures the essence of this text. Only output the description with no introductory text. Focus on the most important visual elements only: "${text}"`,
-          stream: false
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Ollama API error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      return data.response;
-    } catch (error) {
-      console.error(`Error generating visual description for chunk ${chunkId}:`, error);
-      return 'Could not generate visual description at this time.';
-    }
-  };
-  
-  // Process the queue of chunks for visual descriptions
-  const processVisualDescriptionQueue = async () => {
-    if (processingVisualRef.current || chunksForProcessingRef.current.length === 0) {
-      return;
-    }
-    
-    processingVisualRef.current = true;
-    setIsGeneratingVisual(true);
-    
-    try {
-      const chunk = chunksForProcessingRef.current.shift();
-      const description = await generateVisualDescription(chunk.text, chunk.id);
-      
-      if (description) {
-        setVisualDescriptions(prev => ({
-          ...prev,
-          [chunk.id]: description
-        }));
-      }
-    } finally {
-      processingVisualRef.current = false;
-      setIsGeneratingVisual(false);
-      
-      // Continue processing the queue if there are more items
-      if (chunksForProcessingRef.current.length > 0) {
-        setTimeout(processVisualDescriptionQueue, 100); // Small delay to prevent API flooding
-      }
-    }
-  };
-  
-  // Add chunk to the queue for visual description processing
-  const queueChunkForProcessing = (chunkText, chunkId) => {
-    chunksForProcessingRef.current.push({
-      id: chunkId,
-      text: chunkText
-    });
-    
-    // Start processing if not already running
-    if (!processingVisualRef.current) {
-      processVisualDescriptionQueue();
-    }
-  };
+  // State for visual descriptions
+  const [currentChunkId, setCurrentChunkId] = useState(null);
+  const [currentChunkText, setCurrentChunkText] = useState('');
+  const [_visualDescriptions, setVisualDescriptions] = useState({}); // Prefixed with underscore since it's tracked but not directly used
 
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
@@ -100,10 +30,10 @@ function App() {
       setTranscription('');
       setSegments([]);
       setCurrentSegmentId(null);
+      setCurrentChunkId(null);
+      setCurrentChunkText('');
       setProgress(0);
       setVisualDescriptions({});
-      setCurrentVisualDescription('');
-      chunksForProcessingRef.current = [];
       
       // Create audio URL for playback
       const audioUrl = URL.createObjectURL(file);
@@ -184,8 +114,9 @@ function App() {
                 // Append new chunk text to existing transcription
                 setTranscription(prev => prev + ' ' + data.chunk_text);
                 
-                // Queue this chunk for visual description processing
-                queueChunkForProcessing(data.chunk_text, data.chunk_id);
+                // Set the current chunk for visual description processing
+                setCurrentChunkText(data.chunk_text);
+                setCurrentChunkId(data.chunk_id);
               } catch (e) {
                 console.error('Error parsing JSON:', e, jsonStr);
               }
@@ -219,12 +150,7 @@ function App() {
         setCurrentSegmentId(currentSegment.id);
         
         // Find which chunk this segment belongs to
-        const chunkId = currentSegment.chunk_id;
-        
-        // Set the visual description for this chunk if available
-        if (visualDescriptions[chunkId]) {
-          setCurrentVisualDescription(visualDescriptions[chunkId]);
-        }
+        setCurrentChunkId(currentSegment.chunk_id);
         
         setIsAwaitingTranscription(false);
       } else {
@@ -243,14 +169,7 @@ function App() {
           
         if (upcomingSegment) {
           setCurrentSegmentId(upcomingSegment.id);
-          
-          // Find which chunk this upcoming segment belongs to
-          const chunkId = upcomingSegment.chunk_id;
-          
-          // Set the visual description for this chunk if available
-          if (visualDescriptions[chunkId]) {
-            setCurrentVisualDescription(visualDescriptions[chunkId]);
-          }
+          setCurrentChunkId(upcomingSegment.chunk_id);
         }
       }
     };
@@ -262,7 +181,7 @@ function App() {
       audioElement.removeEventListener('timeupdate', handleTimeUpdate);
       audioElement.removeEventListener('seeking', handleTimeUpdate);
     };
-  }, [segments, isLoading, visualDescriptions]);
+  }, [segments, isLoading]);
 
   // Scroll to current segment (for the detailed view)
   useEffect(() => {
@@ -274,9 +193,8 @@ function App() {
     }
   }, [currentSegmentId]);
 
-  // Clean up EventSource on unmount - fixing the React hooks dependency warning
+  // Clean up EventSource on unmount
   useEffect(() => {
-    // Store the current value of the ref in a variable that won't change
     const eventSource = eventSourceRef.current;
     
     return () => {
@@ -286,23 +204,12 @@ function App() {
     };
   }, []);
 
-  // Format time from seconds to MM:SS format - kept for future use
-  // Marked with _ prefix to indicate it's intentionally unused
-  const _formatTime = (timeInSeconds) => {
-    const minutes = Math.floor(timeInSeconds / 60);
-    const seconds = Math.floor(timeInSeconds % 60);
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  };
-
-  // Jump to specific segment time in the audio - kept for future use
-  // Marked with _ prefix to indicate it's intentionally unused
-  const _jumpToSegment = (startTime) => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = startTime;
-      if (audioRef.current.paused) {
-        audioRef.current.play();
-      }
-    }
+  // Callback for when a visual description is generated
+  const handleDescriptionGenerated = (chunkId, description) => {
+    setVisualDescriptions(prev => ({
+      ...prev,
+      [chunkId]: description
+    }));
   };
 
   // Get current segment object
@@ -311,8 +218,19 @@ function App() {
     return segments.find(segment => segment.id === currentSegmentId);
   };
 
-  // Get current segment text
+  // Get current segment
   const currentSegment = getCurrentSegment();
+  
+  // Get the current chunk text for the current chunk ID
+  const getCurrentChunkText = () => {
+    if (currentChunkId === null) return '';
+    
+    // Find all segments with the current chunk ID
+    const segmentsInCurrentChunk = segments.filter(segment => segment.chunk_id === currentChunkId);
+    
+    // Combine their text
+    return segmentsInCurrentChunk.map(segment => segment.text).join(' ');
+  };
 
   return (
     <div className="App">
@@ -347,26 +265,18 @@ function App() {
 
           {visualizationMode === 'visual' ? (
             <AIVisualDescription 
-              description={currentVisualDescription} 
-              isLoading={isGeneratingVisual && Object.keys(visualDescriptions).length === 0} 
+              currentChunkId={currentChunkId}
+              chunkText={currentChunkText || getCurrentChunkText()}
+              onDescriptionGenerated={handleDescriptionGenerated}
             />
           ) : (
-            <div className="animated-transcription-container">
-              {isAwaitingTranscription ? (
-                <div className="animated-segment fade-in">
-                  Still transcribing...
-                </div>
-              ) : segments.length > 0 ? (
-                <AnimatedTranscription 
-                  segment={currentSegment}
-                  isVisible={!!currentSegment}
-                />
-              ) : (
-                <div className="animated-segment empty-message">
-                  {isLoading ? 'Processing audio...' : 'Upload an audio file to see transcription'}
-                </div>
-              )}
-            </div>
+            <AnimatedTranscription 
+              segments={segments}
+              currentSegment={currentSegment}
+              isVisible={!!currentSegment}
+              isAwaitingTranscription={isAwaitingTranscription}
+              isLoading={isLoading}
+            />
           )}
         </div>
       )}
