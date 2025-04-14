@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import './App.css';
 import AnimatedTranscription from './components/AnimatedTranscription';
 import AIVisualDescription from './components/AIVisualDescription';
+import MainPointTitle from './components/MainPointTitle';
 
 function App() {
   // State for shared functionality
@@ -12,16 +13,17 @@ function App() {
   const [currentSegmentId, setCurrentSegmentId] = useState(null);
   const [progress, setProgress] = useState(0);
   const [isAwaitingTranscription, setIsAwaitingTranscription] = useState(false);
-  const [visualizationMode, setVisualizationMode] = useState('transcription'); // 'transcription' or 'visual'
+  const [visualizationMode, setVisualizationMode] = useState('transcription'); // 'transcription', 'visual', or 'mainPoint'
   
   // Refs
   const audioRef = useRef(null);
   const eventSourceRef = useRef(null);
   
-  // State for visual descriptions
+  // State for visual descriptions and main points
   const [currentChunkId, setCurrentChunkId] = useState(null);
   const [currentChunkText, setCurrentChunkText] = useState('');
   const [_visualDescriptions, setVisualDescriptions] = useState({}); // Prefixed with underscore since it's tracked but not directly used
+  const [_mainPointTitles, setMainPointTitles] = useState({}); // Prefixed with underscore since it's tracked but not directly used
 
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
@@ -212,6 +214,14 @@ function App() {
     }));
   };
 
+  // Callback for when a main point title is generated
+  const handleTitleGenerated = (chunkId, title) => {
+    setMainPointTitles(prev => ({
+      ...prev,
+      [chunkId]: title
+    }));
+  };
+
   // Get current segment object
   const getCurrentSegment = () => {
     if (currentSegmentId === null || segments.length === 0) return null;
@@ -230,6 +240,27 @@ function App() {
     
     // Combine their text
     return segmentsInCurrentChunk.map(segment => segment.text).join(' ');
+  };
+
+  // Get combined text from multiple chunks for a ~30 second window
+  const getCombinedWindowText = () => {
+    if (currentSegment === null || segments.length === 0) return '';
+    
+    const currentTime = currentSegment.start;
+    // Look for segments within a 30 second window (15 seconds before and 15 after current position)
+    const windowStart = Math.max(0, currentTime - 15);
+    const windowEnd = currentTime + 15;
+    
+    // Find all segments within this time window
+    const segmentsInWindow = segments.filter(segment => 
+      segment.start >= windowStart && segment.start <= windowEnd
+    );
+    
+    // Sort them by time
+    segmentsInWindow.sort((a, b) => a.start - b.start);
+    
+    // Combine their text
+    return segmentsInWindow.map(segment => segment.text).join(' ');
   };
 
   return (
@@ -261,6 +292,12 @@ function App() {
             >
               Visual Description
             </button>
+            <button 
+              className={`toggle-btn ${visualizationMode === 'mainPoint' ? 'active' : ''}`}
+              onClick={() => setVisualizationMode('mainPoint')}
+            >
+              Main Point
+            </button>
           </div>
 
           {visualizationMode === 'visual' ? (
@@ -268,6 +305,12 @@ function App() {
               currentChunkId={currentChunkId}
               chunkText={currentChunkText || getCurrentChunkText()}
               onDescriptionGenerated={handleDescriptionGenerated}
+            />
+          ) : visualizationMode === 'mainPoint' ? (
+            <MainPointTitle
+              currentChunkId={currentChunkId}
+              chunkText={getCombinedWindowText() || getCurrentChunkText()}
+              onTitleGenerated={handleTitleGenerated}
             />
           ) : (
             <AnimatedTranscription 
