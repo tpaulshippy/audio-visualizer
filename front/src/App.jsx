@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import './App.css';
 import AnimatedTranscription from './components/AnimatedTranscription';
-import OllamaTextProcessor from './components/OllamaTextProcessor';
+import SlideGeneratorComponent from './components/SlideGenerator';
 
 function App() {
   // State for shared functionality
@@ -21,6 +21,18 @@ function App() {
   // State for visual descriptions and main points
   const [currentChunkId, setCurrentChunkId] = useState(null);
   const [currentChunkText, setCurrentChunkText] = useState('');
+  
+  // State for API key
+  const [apiKey, setApiKey] = useState(
+    localStorage.getItem('openrouter_api_key') || ''
+  );
+
+  // Function to handle API key changes
+  const handleApiKeyChange = (event) => {
+    const newApiKey = event.target.value;
+    setApiKey(newApiKey);
+    localStorage.setItem('openrouter_api_key', newApiKey);
+  };
 
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
@@ -248,6 +260,21 @@ function App() {
       {!audioSrc && (
         <>
           <h1>Audio Visualizer</h1>
+          <div className="api-key-container">
+            <label className="api-key-label">
+              OpenRouter API Key:
+              <input 
+                type="password" 
+                value={apiKey} 
+                onChange={handleApiKeyChange} 
+                placeholder="Enter your OpenRouter API key" 
+                className="api-key-input"
+              />
+            </label>
+            <div className="api-key-help">
+              Sign up at <a href="https://openrouter.ai" target="_blank" rel="noreferrer">openrouter.ai</a> to get your API key
+            </div>
+          </div>
           <div className="upload-container">
             <label className="file-upload">
               Choose Audio File
@@ -287,19 +314,19 @@ function App() {
           </div>
 
           {visualizationMode === 'visual' ? (
-            <OllamaTextProcessor
+            <SlideGeneratorComponent
               mode="visual"
               currentChunkId={currentChunkId}
               chunkText={currentChunkText || getCurrentChunkText()}
             />
           ) : visualizationMode === 'mainPoint' ? (
-            <OllamaTextProcessor
+            <SlideGeneratorComponent
               mode="mainPoint"
               currentChunkId={currentChunkId}
               chunkText={getCombinedWindowText() || getCurrentChunkText()}
             />
           ) : visualizationMode === 'creativeSlide' ? (
-            <OllamaTextProcessor
+            <SlideGeneratorComponent
               mode="creativeSlide"
               currentChunkId={currentChunkId}
               chunkText={getCombinedWindowText() || getCurrentChunkText()}

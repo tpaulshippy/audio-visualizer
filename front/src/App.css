@@ -12,6 +12,55 @@
   min-height: 100vh;
 }
 
+/* API Key input styles */
+.api-key-container {
+  margin-bottom: 2rem;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+}
+
+.api-key-label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.api-key-input {
+  width: 100%;
+  padding: 10px;
+  border-radius: 4px;
+  border: 1px solid #444;
+  background-color: rgba(30, 30, 30, 0.8);
+  color: white;
+  font-size: 0.9rem;
+  margin-top: 5px;
+  font-family: monospace;
+}
+
+.api-key-input::placeholder {
+  color: #aaa;
+}
+
+.api-key-help {
+  font-size: 0.8rem;
+  color: #aaa;
+  margin-top: 5px;
+  text-align: left;
+}
+
+.api-key-help a {
+  color: #4a90e2;
+  text-decoration: none;
+}
+
+.api-key-help a:hover {
+  text-decoration: underline;
+}
+
 /* New visualization container styles */
 .visualization-container {
   display: flex;
@@ -341,15 +390,13 @@ h1 {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 0 2rem 0;
+  margin: 0 0 2rem;
   border-radius: 12px;
   padding: 25px 15px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   overflow-y: auto;
   position: relative;
-  width: 100vw;
-  max-width: 100vw;
-  margin-left: calc(-50vw + 50%);
+  width: 100%;
   box-sizing: border-box;
   border: 1px solid rgba(80, 120, 180, 0.3);
 }
@@ -391,10 +438,9 @@ h1 {
 .ollama-processor-container.creativeSlide .ollama-processor-result {
   width: 100%;
   height: 100%;
-}
-
-.ollama-processor-container.creativeSlide::before {
-  background: linear-gradient(90deg, #9b59b6, #f39c12);
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 /* Creative slide content container */
@@ -486,6 +532,7 @@ h1 {
   overflow-wrap: break-word;
   word-wrap: break-word;
   hyphens: auto;
+  margin: 0 auto;
 }
 
 /* Result text styling - mode specific */

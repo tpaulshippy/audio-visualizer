@@ -2,21 +2,21 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 
 /**
- * OllamaTextProcessor Component
+ * TextProcessorComponent
  * A unified component that can provide AI-generated visual descriptions or main point titles
- * based on transcription content.
+ * based on transcription content using OpenRouter API.
  * 
  * @param {string} props.mode - The processing mode ('visual' or 'mainPoint')
  * @param {number} props.currentChunkId - The ID of the current chunk being processed
  * @param {string} props.chunkText - The text content to process
  * @param {function} props.onResultGenerated - Callback when a result is generated
  */
-const OllamaTextProcessor = ({ mode, currentChunkId, chunkText, onResultGenerated }) => {
+const SlideGeneratorComponent = ({ mode, currentChunkId, chunkText, onResultGenerated }) => {
   const [result, setResult] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [resultCache, setResultCache] = useState({}); // Map of text hashes to results
   const processingRef = useRef(false); // Flag to track if we're currently processing
-  const activeRequestRef = useRef(false); // Flag to track active Ollama API requests
+  const activeRequestRef = useRef(false); // Flag to track active API requests
   const abortControllerRef = useRef(null); // Reference to the current request's AbortController
   const lastProcessedHash = useRef(null); // Track the last processed text hash
   const currentTextHashRef = useRef(null); // Track the current text hash for the displayed content
@@ -45,7 +45,8 @@ ${chunkText}`,
         prompt: `Create an engaging, visually interesting slide to illustrate the key point from this audio segment.
   Return ONLY valid HTML and CSS that represents a single slide. The HTML should include a <style> tag with your custom CSS.
   Use modern CSS features for layout, transitions, and visual effects. You can use emoji and Unicode symbols.
-  Make the slide visually striking and memorable.
+  Make the slide visually striking and memorable. We are in dark mode, so the default text color is white.
+  Use a dark background and bright colors for text and elements.
   
   Focus on the main point, use short sentences or bullet points, and ensure your design supports the message.
   Do not include any explanatory text, only the HTML/CSS for the slide.
@@ -109,7 +110,7 @@ ${chunkText}`,
     return `<div class="creative-slide">${responseText}</div>`;
   }, []);
   
-  // Function to send text to Ollama and get result
+  // Function to send text to OpenRouter and get result
   const generateResult = async (text, windowIdentifier) => {
     // Cancel any previous ongoing request
     if (abortControllerRef.current) {
@@ -140,32 +141,47 @@ ${chunkText}`,
         controller.abort();
       }, 60000); // 60 second timeout
       
-      const response = await fetch('http://localhost:11434/api/generate', {
+      // Get API key from environment or localStorage
+      const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY || localStorage.getItem('openrouter_api_key');
+      
+      if (!apiKey) {
+        throw new Error('OpenRouter API key is missing. Please add it to your environment variables or localStorage.');
+      }
+      
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          'HTTP-Referer': window.location.origin, // Required by OpenRouter
+          'X-Title': 'Audio Visualizer' // Optional app name
         },
         body: JSON.stringify({
-          model: 'dolphin3', // Use your preferred Ollama model
-          prompt: config.prompt,
-          stream: false
+          model: 'meta-llama/llama-4-maverick:free', // You can change this to any model available on OpenRouter
+          messages: [
+            {
+              role: 'user',
+              content: config.prompt
+            }
+          ],
+          max_tokens: 500
         }),
         signal: controller.signal
       }).finally(() => clearTimeout(timeoutId));
       
       if (!response.ok) {
-        throw new Error(`Ollama API error! status: ${response.status}`);
+        throw new Error(`OpenRouter API error! status: ${response.status}`);
       }
       
       const data = await response.json();
-    
+      const generatedText = data.choices[0]?.message?.content || '';
       
       // For creativeSlide mode, process the response to ensure it's valid HTML
       if (mode === 'creativeSlide') {
-        return processCreativeSlideResponse(data.response);
+        return processCreativeSlideResponse(generatedText);
       }
       
-      return data.response;
+      return generatedText;
     } catch (error) {
       console.error(`Error generating ${config.logPrefix}:`, error);
       let errorMessage;
@@ -176,23 +192,25 @@ ${chunkText}`,
           console.log('Request was cancelled intentionally');
           return null;
         }
-        errorMessage = 'Request timed out. Ollama server may be overwhelmed or not running.';
+        errorMessage = 'Request timed out. OpenRouter may be overwhelmed.';
       } else if (error.message === 'Failed to fetch') {
-        errorMessage = 'Could not connect to Ollama service. Make sure Ollama is running on your machine.';
-        console.error('Ollama service connection error: Make sure Ollama is running at http://localhost:11434');
+        errorMessage = 'Could not connect to OpenRouter service. Check your internet connection.';
+        console.error('OpenRouter service connection error');
+      } else if (error.message.includes('API key')) {
+        errorMessage = 'Missing API key. Please add your OpenRouter API key in the settings.';
       } else {
         errorMessage = `Error: ${error.message}`;
       }
       
       if (mode === 'visual') {
-        return `<strong style="color: #ff5555;">Could not generate visual description.</strong><br>${errorMessage}<br><span style="font-size: 0.9rem;">Try running <code>ollama serve</code> in your terminal</span>`;
+        return `<strong style="color: #ff5555;">Could not generate visual description.</strong><br>${errorMessage}<br><span style="font-size: 0.9rem;">Check your API key or internet connection</span>`;
       } else if (mode === 'mainPoint') {
-        return `<strong style="color: #ff5555;">Topic unavailable.</strong><br>${errorMessage}<br><span style="font-size: 0.9rem;">Try running <code>ollama serve</code> in your terminal</span>`;
+        return `<strong style="color: #ff5555;">Topic unavailable.</strong><br>${errorMessage}<br><span style="font-size: 0.9rem;">Check your API key or internet connection</span>`;
       } else {
         return `<div class="creative-slide">
-          <h1 style="color: #ff5555;">Ollama Connection Error</h1>
+          <h1 style="color: #ff5555;">OpenRouter Connection Error</h1>
           <p>${errorMessage}</p>
-          <p style="font-size: 0.9rem;">Try running <code>ollama serve</code> in your terminal or check if port 11434 is accessible.</p>
+          <p style="font-size: 0.9rem;">Please verify your API key is configured correctly</p>
         </div>`;
       }
     } finally {
@@ -210,9 +228,9 @@ ${chunkText}`,
     // Store the current audio time for reference
     currentAudioTimeRef.current = currentTime;
     
-    // Only generate a new result if it's been at least 60 seconds since the last one
+    // Only generate a new result if it's been at least 20 seconds since the last one
     const timeSinceLastResult = currentTime - lastResultTimeRef.current;
-    return timeSinceLastResult >= 60 || lastResultTimeRef.current === 0;
+    return timeSinceLastResult >= 20 || lastResultTimeRef.current === 0;
   }, []);
   
   // Directly process the current text chunk
@@ -385,17 +403,17 @@ return (
 );
 };
 
-OllamaTextProcessor.propTypes = {
+TextProcessorComponent.propTypes = {
   mode: PropTypes.oneOf(['visual', 'mainPoint', 'creativeSlide']).isRequired,
   currentChunkId: PropTypes.number,
   chunkText: PropTypes.string,
   onResultGenerated: PropTypes.func
 };
 
-OllamaTextProcessor.defaultProps = {
+TextProcessorComponent.defaultProps = {
   currentChunkId: null,
   chunkText: '',
   onResultGenerated: () => {}
 };
 
-export default OllamaTextProcessor;
+export default TextProcessorComponent;
