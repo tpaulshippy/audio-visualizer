@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import './App.css';
 import AnimatedTranscription from './components/AnimatedTranscription';
-import AIVisualDescription from './components/AIVisualDescription';
-import MainPointTitle from './components/MainPointTitle';
+import OllamaTextProcessor from './components/OllamaTextProcessor';
 
 function App() {
   // State for shared functionality
@@ -301,16 +300,18 @@ function App() {
           </div>
 
           {visualizationMode === 'visual' ? (
-            <AIVisualDescription 
+            <OllamaTextProcessor
+              mode="visual"
               currentChunkId={currentChunkId}
               chunkText={currentChunkText || getCurrentChunkText()}
-              onDescriptionGenerated={handleDescriptionGenerated}
+              onResultGenerated={handleDescriptionGenerated}
             />
           ) : visualizationMode === 'mainPoint' ? (
-            <MainPointTitle
+            <OllamaTextProcessor
+              mode="mainPoint"
               currentChunkId={currentChunkId}
               chunkText={getCombinedWindowText() || getCurrentChunkText()}
-              onTitleGenerated={handleTitleGenerated}
+              onResultGenerated={handleTitleGenerated}
             />
           ) : (
             <AnimatedTranscription 
