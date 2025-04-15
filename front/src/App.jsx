@@ -12,7 +12,7 @@ function App() {
   const [currentSegmentId, setCurrentSegmentId] = useState(null);
   const [progress, setProgress] = useState(0);
   const [isAwaitingTranscription, setIsAwaitingTranscription] = useState(false);
-  const [visualizationMode, setVisualizationMode] = useState('transcription'); // 'transcription', 'visual', or 'mainPoint'
+  const [visualizationMode, setVisualizationMode] = useState('transcription'); // 'transcription', 'visual', 'mainPoint', or 'creativeSlide'
   
   // Refs
   const audioRef = useRef(null);
@@ -21,8 +21,6 @@ function App() {
   // State for visual descriptions and main points
   const [currentChunkId, setCurrentChunkId] = useState(null);
   const [currentChunkText, setCurrentChunkText] = useState('');
-  const [_visualDescriptions, setVisualDescriptions] = useState({}); // Prefixed with underscore since it's tracked but not directly used
-  const [_mainPointTitles, setMainPointTitles] = useState({}); // Prefixed with underscore since it's tracked but not directly used
 
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
@@ -34,7 +32,6 @@ function App() {
       setCurrentChunkId(null);
       setCurrentChunkText('');
       setProgress(0);
-      setVisualDescriptions({});
       
       // Create audio URL for playback
       const audioUrl = URL.createObjectURL(file);
@@ -205,22 +202,6 @@ function App() {
     };
   }, []);
 
-  // Callback for when a visual description is generated
-  const handleDescriptionGenerated = (chunkId, description) => {
-    setVisualDescriptions(prev => ({
-      ...prev,
-      [chunkId]: description
-    }));
-  };
-
-  // Callback for when a main point title is generated
-  const handleTitleGenerated = (chunkId, title) => {
-    setMainPointTitles(prev => ({
-      ...prev,
-      [chunkId]: title
-    }));
-  };
-
   // Get current segment object
   const getCurrentSegment = () => {
     if (currentSegmentId === null || segments.length === 0) return null;
@@ -297,6 +278,12 @@ function App() {
             >
               Main Point
             </button>
+            <button 
+              className={`toggle-btn ${visualizationMode === 'creativeSlide' ? 'active' : ''}`}
+              onClick={() => setVisualizationMode('creativeSlide')}
+            >
+              Creative Slide
+            </button>
           </div>
 
           {visualizationMode === 'visual' ? (
@@ -304,14 +291,18 @@ function App() {
               mode="visual"
               currentChunkId={currentChunkId}
               chunkText={currentChunkText || getCurrentChunkText()}
-              onResultGenerated={handleDescriptionGenerated}
             />
           ) : visualizationMode === 'mainPoint' ? (
             <OllamaTextProcessor
               mode="mainPoint"
               currentChunkId={currentChunkId}
               chunkText={getCombinedWindowText() || getCurrentChunkText()}
-              onResultGenerated={handleTitleGenerated}
+            />
+          ) : visualizationMode === 'creativeSlide' ? (
+            <OllamaTextProcessor
+              mode="creativeSlide"
+              currentChunkId={currentChunkId}
+              chunkText={getCombinedWindowText() || getCurrentChunkText()}
             />
           ) : (
             <AnimatedTranscription 
