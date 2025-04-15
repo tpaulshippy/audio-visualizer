@@ -26,9 +26,6 @@ const OllamaTextProcessor = ({ mode, currentChunkId, chunkText, onResultGenerate
   const config = {
     visual: {
       prompt: `Create a brief visual description (1-2 sentences only) for an image that captures the essence of this text. Only output the description with no introductory text. Focus on the most important visual elements only: "${chunkText}"`,
-      containerClass: 'ai-visual-description-container',
-      contentClass: 'ai-visual-content',
-      resultClass: 'ai-description',
       loadingText: 'Generating visual description...',
       defaultText: 'Visual description will appear here',
       logPrefix: 'visual description'
@@ -38,9 +35,6 @@ const OllamaTextProcessor = ({ mode, currentChunkId, chunkText, onResultGenerate
 Create a short, concise title (5-7 words maximum) that captures the essence of the discussion. 
 Do not wrap output in quotes. Only output the title with no additional text:
 ${chunkText}`,
-      containerClass: 'main-point-title-container',
-      contentClass: 'main-point-content',
-      resultClass: 'main-point-title',
       loadingText: 'Processing topic...',
       defaultText: 'Topic will appear here',
       logPrefix: 'main point title'
@@ -213,7 +207,7 @@ ${chunkText}`,
     
     const handleTimeUpdate = () => {
       // Only process if we have content and are in the current visualization mode
-      const isContainerVisible = document.querySelector(`.${config.containerClass}`)?.offsetParent !== null;
+      const isContainerVisible = document.querySelector(`.ollama-processor-container.${mode}`)?.offsetParent !== null;
       if (!isContainerVisible || !chunkText || currentChunkId === null) return;
       
       const currentTime = audioElement.currentTime;
@@ -228,7 +222,7 @@ ${chunkText}`,
     // Handle seeking events - when user jumps to a different part of audio
     const handleSeeking = () => {
       // Only process if we have content and are in the current visualization mode
-      const isContainerVisible = document.querySelector(`.${config.containerClass}`)?.offsetParent !== null;
+      const isContainerVisible = document.querySelector(`.ollama-processor-container.${mode}`)?.offsetParent !== null;
       if (!isContainerVisible || !chunkText || currentChunkId === null) return;
       
       // Since seeking is a deliberate user action, force generate a result
@@ -238,7 +232,7 @@ ${chunkText}`,
     
     // Handle the play event to generate a result when starting playback
     const handlePlay = () => {
-      const isContainerVisible = document.querySelector(`.${config.containerClass}`)?.offsetParent !== null;
+      const isContainerVisible = document.querySelector(`.ollama-processor-container.${mode}`)?.offsetParent !== null;
       if (!isContainerVisible || !chunkText || currentChunkId === null) return;
       
       forceGenerateResultForCurrentContent();
@@ -254,15 +248,15 @@ ${chunkText}`,
       audioElement.removeEventListener('seeked', handleSeeking);
       audioElement.removeEventListener('play', handlePlay);
     };
-  }, [chunkText, currentChunkId, processCurrentTextChunk, forceGenerateResultForCurrentContent, config.containerClass]);
+  }, [chunkText, currentChunkId, processCurrentTextChunk, forceGenerateResultForCurrentContent, mode]);
 
   return (
-    <div className={config.containerClass}>
-      <div className={config.contentClass}>
+    <div className={`ollama-processor-container ${mode}`}>
+      <div className="ollama-processor-content">
         {isLoading && !result && !previousResultRef.current ? (
-          <div className="ai-loading">{config.loadingText}</div>
+          <div className="ollama-processor-loading">{config.loadingText}</div>
         ) : (
-          <div className={config.resultClass}>
+          <div className="ollama-processor-result">
             {result || previousResultRef.current || config.defaultText}
           </div>
         )}
