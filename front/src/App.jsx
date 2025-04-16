@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import './App.css';
 import AnimatedTranscription from './components/AnimatedTranscription';
 import SlideGeneratorComponent from './components/SlideGenerator';
+import AudioInput from './components/AudioInput';
 
 function App() {
   // State for shared functionality
@@ -34,109 +35,157 @@ function App() {
     localStorage.setItem('openrouter_api_key', newApiKey);
   };
 
-  const handleFileUpload = async (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      setIsLoading(true);
-      setTranscription('');
-      setSegments([]);
-      setCurrentSegmentId(null);
-      setCurrentChunkId(null);
-      setCurrentChunkText('');
-      setProgress(0);
+  const handleAudioSelected = async (audioData) => {
+    setIsLoading(true);
+    setTranscription('');
+    setSegments([]);
+    setCurrentSegmentId(null);
+    setCurrentChunkId(null);
+    setCurrentChunkText('');
+    setProgress(0);
+    
+    // Set the audio source URL for playback
+    setAudioSrc(audioData.audioUrl);
+
+    // Process based on the source type
+    if (audioData.sourceType === 'file') {
+      await processAudioFile(audioData.file);
+    } else if (audioData.sourceType === 'url') {
+      // Transcribe the podcast file that was downloaded on the server
+      await transcribePodcastFile(audioData.file_path);
       
-      // Create audio URL for playback
-      const audioUrl = URL.createObjectURL(file);
-      setAudioSrc(audioUrl);
+      // If there's any additional metadata or processing needed, it would go here
+      if (audioData.metadata) {
+        console.log('Podcast metadata:', audioData.metadata);
+        // You could set this to state if you want to display it in the UI
+      }
+    }
+  };
 
-      const formData = new FormData();
-      formData.append('audio_file', file);
+  const processAudioFile = async (file) => {
+    const formData = new FormData();
+    formData.append('audio_file', file);
 
-      try {
-        // Close any existing event source
-        if (eventSourceRef.current) {
-          eventSourceRef.current.close();
-        }
+    try {
+      // Close any existing event source
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
 
-        // Set up a POST request to start the transcription process
-        const fetchUrl = 'http://localhost:8000/transcribe/';
-        
-        const response = await fetch(fetchUrl, {
-          method: 'POST',
-          body: formData,
-        });
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        // Process the response as a stream directly
-        const reader = response.body.getReader();
-        let allSegments = [];
-        let partialData = '';
-        
-        while (true) {
-          const { done, value } = await reader.read();
-          
-          if (done) {
-            setIsLoading(false);
-            break;
-          }
-          
-          // Convert the chunk to text and append to any partial data
-          const chunk = new TextDecoder().decode(value);
-          const fullText = partialData + chunk;
-          
-          // Split by double newlines (SSE format uses "data: {...}\n\n")
-          const parts = fullText.split('\n\n');
-          
-          // The last part might be incomplete, save it for the next chunk
-          partialData = parts.pop() || '';
-          
-          // Process each complete part
-          for (const part of parts) {
-            if (part.startsWith('data: ')) {
-              const jsonStr = part.slice(6); // Remove "data: " prefix
-              try {
-                const data = JSON.parse(jsonStr);
-                
-                if (data.error) {
-                  console.error('Error in transcription:', data.error);
-                  setTranscription(`Error: ${data.error}`);
-                  setIsLoading(false);
-                  return;
-                }
-                
-                // Update progress
-                setProgress(Math.round((data.chunk_id + 1) / data.total_chunks * 100));
-                
-                // Add chunk_id to each segment for easier lookup later
-                const segmentsWithChunkId = data.segments.map(segment => ({
-                  ...segment,
-                  chunk_id: data.chunk_id
-                }));
-                
-                // Append new segments to existing segments
-                const newSegments = [...allSegments, ...segmentsWithChunkId];
-                allSegments = newSegments;
-                setSegments(newSegments);
-                
-                // Append new chunk text to existing transcription
-                setTranscription(prev => prev + ' ' + data.chunk_text);
-                
-                // Set the current chunk for visual description processing
-                setCurrentChunkText(data.chunk_text);
-                setCurrentChunkId(data.chunk_id);
-              } catch (e) {
-                console.error('Error parsing JSON:', e, jsonStr);
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error:', error);
-        setTranscription(`Error: ${error.message}`);
+      // Set up a POST request to start the transcription process
+      const fetchUrl = 'http://localhost:8000/transcribe/';
+      
+      const response = await fetch(fetchUrl, {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      await processTranscriptionResponse(response);
+    } catch (error) {
+      console.error('Error:', error);
+      setTranscription(`Error: ${error.message}`);
+      setIsLoading(false);
+    }
+  };
+  
+  const transcribePodcastFile = async (filePath) => {
+    try {
+      // Close any existing event source
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+
+      // Set up a POST request to start the transcription process
+      const fetchUrl = 'http://localhost:8000/transcribe_podcast/';
+      
+      const response = await fetch(fetchUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          file_path: filePath 
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      await processTranscriptionResponse(response);
+    } catch (error) {
+      console.error('Error:', error);
+      setTranscription(`Error: ${error.message}`);
+      setIsLoading(false);
+    }
+  };
+  
+  const processTranscriptionResponse = async (response) => {
+    // Process the response as a stream directly
+    const reader = response.body.getReader();
+    let allSegments = [];
+    let partialData = '';
+    
+    while (true) {
+      const { done, value } = await reader.read();
+      
+      if (done) {
         setIsLoading(false);
+        break;
+      }
+      
+      // Convert the chunk to text and append to any partial data
+      const chunk = new TextDecoder().decode(value);
+      const fullText = partialData + chunk;
+      
+      // Split by double newlines (SSE format uses "data: {...}\n\n")
+      const parts = fullText.split('\n\n');
+      
+      // The last part might be incomplete, save it for the next chunk
+      partialData = parts.pop() || '';
+      
+      // Process each complete part
+      for (const part of parts) {
+        if (part.startsWith('data: ')) {
+          const jsonStr = part.slice(6); // Remove "data: " prefix
+          try {
+            const data = JSON.parse(jsonStr);
+            
+            if (data.error) {
+              console.error('Error in transcription:', data.error);
+              setTranscription(`Error: ${data.error}`);
+              setIsLoading(false);
+              return;
+            }
+            
+            // Update progress
+            setProgress(Math.round((data.chunk_id + 1) / data.total_chunks * 100));
+            
+            // Add chunk_id to each segment for easier lookup later
+            const segmentsWithChunkId = data.segments.map(segment => ({
+              ...segment,
+              chunk_id: data.chunk_id
+            }));
+            
+            // Append new segments to existing segments
+            const newSegments = [...allSegments, ...segmentsWithChunkId];
+            allSegments = newSegments;
+            setSegments(newSegments);
+            
+            // Append new chunk text to existing transcription
+            setTranscription(prev => prev + ' ' + data.chunk_text);
+            
+            // Set the current chunk for visual description processing
+            setCurrentChunkText(data.chunk_text);
+            setCurrentChunkId(data.chunk_id);
+          } catch (e) {
+            console.error('Error parsing JSON:', e, jsonStr);
+          }
+        }
       }
     }
   };
@@ -258,30 +307,11 @@ function App() {
   return (
     <div className="App">
       {!audioSrc && (
-        <>
-          <h1>Audio Visualizer</h1>
-          <div className="api-key-container">
-            <label className="api-key-label">
-              OpenRouter API Key:
-              <input 
-                type="password" 
-                value={apiKey} 
-                onChange={handleApiKeyChange} 
-                placeholder="Enter your OpenRouter API key" 
-                className="api-key-input"
-              />
-            </label>
-            <div className="api-key-help">
-              Sign up at <a href="https://openrouter.ai" target="_blank" rel="noreferrer">openrouter.ai</a> to get your API key
-            </div>
-          </div>
-          <div className="upload-container">
-            <label className="file-upload">
-              Choose Audio File
-              <input type="file" accept="audio/*" onChange={handleFileUpload} />
-            </label>
-          </div>
-        </>
+        <AudioInput 
+          onAudioSelected={handleAudioSelected}
+          apiKey={apiKey}
+          onApiKeyChange={handleApiKeyChange}
+        />
       )}
 
       {audioSrc && (
