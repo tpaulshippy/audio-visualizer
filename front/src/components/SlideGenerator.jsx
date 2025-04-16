@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 
 /**
- * TextProcessorComponent
+ * SlideGeneratorComponent
  * A unified component that can provide AI-generated visual descriptions or main point titles
  * based on transcription content using OpenRouter API.
  * 
@@ -403,17 +403,17 @@ return (
 );
 };
 
-TextProcessorComponent.propTypes = {
+SlideGeneratorComponent.propTypes = {
   mode: PropTypes.oneOf(['visual', 'mainPoint', 'creativeSlide']).isRequired,
   currentChunkId: PropTypes.number,
   chunkText: PropTypes.string,
   onResultGenerated: PropTypes.func
 };
 
-TextProcessorComponent.defaultProps = {
+SlideGeneratorComponent.defaultProps = {
   currentChunkId: null,
   chunkText: '',
   onResultGenerated: () => {}
 };
 
-export default TextProcessorComponent;
+export default SlideGeneratorComponent;
